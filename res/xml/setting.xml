@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen
+  xmlns:android="http://schemas.android.com/apk/res/android">
+<EditTextPreference android:summary="Input LivedoorID" android:key="id" android:dialogTitle="Input LivedoorID" android:title="LivedoorID"></EditTextPreference>
+<EditTextPreference android:key="password" android:title="Password" android:summary="Input password" android:dialogTitle="Input password"></EditTextPreference>
+</PreferenceScreen>

@@ -19,6 +19,7 @@ import android.app.Activity;
 import android.content.Intent;
 import android.os.Bundle;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.util.Xml;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -31,9 +32,10 @@ import android.widget.ImageView;
 public class PhotoBlr extends Activity {
     private final static String TUMBLR_API_BASE_URL  = "http://www.tumblr.com/api/";
     private final static String TUMBLR_API_DASHBOARD = TUMBLR_API_BASE_URL + "dashboard";
-    private ArrayList<String>   origins              = new ArrayList<String>();
-    private ArrayList<String>   thumbnails           = new ArrayList<String>();
     private float               scaledDensity;
+    private int                 page                 = 0;
+    private GridView gridview;
+    private ImageAdapter adapter;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -45,17 +47,21 @@ public class PhotoBlr extends Activity {
         DisplayMetrics metrics = new DisplayMetrics();
         getWindowManager().getDefaultDisplay().getMetrics(metrics);
         scaledDensity = metrics.scaledDensity;
+        // view
+        adapter = new ImageAdapter();
+        gridview = (GridView) findViewById(R.id.GridView01);
+        gridview.setAdapter(adapter);
         // 接続
-        this.readDashboard(id, pass);
+        this.readDashboard(id, pass, 0);
     }
 
     @Override
     protected void onResume() {
         super.onResume();
-        if (thumbnails.size() == 0) {
+        if (adapter.getCount() == 0) {
             String id = Setting.getId(getApplicationContext());
             String pass = Setting.getPass(getApplicationContext());
-            this.readDashboard(id, pass);
+            this.readDashboard(id, pass, 0);
         }
     }
 
@@ -90,16 +96,16 @@ public class PhotoBlr extends Activity {
                     // 元画像URLが初出だったらサムネイルも取得させる
                     if ("photo-link-url".equals(parser.getName())) {
                         String url = parser.nextText();
-                        getThumbnail = !origins.contains(url);
+                        getThumbnail = !adapter.contains(url);
                         if (getThumbnail) {
-                            origins.add(url);
+                            adapter.addOrigins(url);
                         }
                     }
                     // サムネイル取得フラグがあったら
                     if ("photo-url".equals(parser.getName()) && getThumbnail) {
                         int width = Integer.parseInt(parser.getAttributeValue(null, "max-width"));
                         if (width == 75) {
-                            thumbnails.add(parser.nextText());
+                            adapter.addThumbnail(parser.nextText());
                             getThumbnail = false;
                         }
                     }
@@ -113,7 +119,7 @@ public class PhotoBlr extends Activity {
         }
     }
 
-    private void readDashboard(String id, String pass) {
+    private void readDashboard(String id, String pass, int start) {
         if (id.equals("") || pass.equals("")) {
             return;
         }
@@ -123,24 +129,37 @@ public class PhotoBlr extends Activity {
         params.add(new BasicNameValuePair("email", id));
         params.add(new BasicNameValuePair("password", pass));
         params.add(new BasicNameValuePair("type", "photo"));
-        params.add(new BasicNameValuePair("num", "50"));
+        params.add(new BasicNameValuePair("start", "" + start));
+        params.add(new BasicNameValuePair("num", "25"));
         try {
             post.setEntity(new UrlEncodedFormEntity(params));
             HttpResponse res = http.execute(post);
             ByteArrayOutputStream os = new ByteArrayOutputStream();
             res.getEntity().writeTo(os);
             this.setImages(os.toString());
+            //debug("recieve xml: " + os.toString());
         } catch (Exception e) {
             e.printStackTrace();
         }
-        // view 更新
-        GridView gv = (GridView) findViewById(R.id.GridView01);
-        gv.setAdapter(new ImageAdapter());
-
     }
 
     public class ImageAdapter extends BaseAdapter {
         private final Downloader downloader = new Downloader();
+        private ArrayList<String>   origins              = new ArrayList<String>();
+        private ArrayList<String>   thumbnails           = new ArrayList<String>();
+        
+        public boolean contains(String url) {
+            return origins.contains(url);
+        }
+        
+        public void addOrigins(String url) {
+            origins.add(url);
+        }
+        
+        public void addThumbnail(String url) {
+            thumbnails.add(url);
+            this.notifyDataSetChanged();
+        }
 
         @Override
         public int getCount() {
@@ -161,7 +180,7 @@ public class PhotoBlr extends Activity {
         public View getView(int position, View convertView, ViewGroup parent) {
             ImageView iv = null;
             if (convertView == null) {
-                float size = 45 * scaledDensity;
+                float size = 75 * scaledDensity;
                 iv = new ImageView(parent.getContext());
                 iv.setLayoutParams(new GridView.LayoutParams((int) size, (int) size));
                 iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -172,5 +191,9 @@ public class PhotoBlr extends Activity {
             downloader.download(thumbnails.get(position), iv);
             return iv;
         }
+    }
+    
+    public void debug(String msg) {
+        Log.d("photoblr", msg);
     }
 }

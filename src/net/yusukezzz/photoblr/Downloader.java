@@ -178,7 +178,7 @@ public class Downloader {
     }
 
     private static final int    HARD_CACHE_CAPACITY = 100;
-    private static final int    DELAY_BEFORE_PURGE  = 10 * 1000;
+    private static final int    DELAY_BEFORE_PURGE  = 60 * 1000;
 
     @SuppressWarnings("serial")
     private final HashMap<String, Bitmap> sHardBitmapCache =

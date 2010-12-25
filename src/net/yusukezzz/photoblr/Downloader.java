@@ -76,7 +76,7 @@ public class Downloader {
         return null;
     }
 
-    Bitmap downloadBitmap(String url) {
+    public Bitmap downloadBitmap(String url) {
         final HttpClient client = new DefaultHttpClient();
         final HttpGet getRequest = new HttpGet(url);
 

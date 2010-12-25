@@ -2,6 +2,9 @@ package net.yusukezzz.photoblr;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,17 +28,23 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
 import android.widget.BaseAdapter;
 import android.widget.GridView;
 import android.widget.ImageView;
+import android.widget.Toast;
 
-public class PhotoBlr extends Activity {
+public class PhotoBlr extends Activity implements AdapterView.OnItemClickListener {
     private final static String TUMBLR_API_BASE_URL  = "http://www.tumblr.com/api/";
     private final static String TUMBLR_API_DASHBOARD = TUMBLR_API_BASE_URL + "dashboard";
+    private static final int    REQUEST_PHOTO_VIEW   = 0;
+    private static final int    IMAGE_SIZE_LARGE     = 1280;
+    private static final int    IMAGE_SIZE_MIDDLE    = 500;
+    private static final int    IMAGE_SIZE_SMALL     = 250;
     private float               scaledDensity;
     private int                 page                 = 0;
-    private GridView gridview;
-    private ImageAdapter adapter;
+    private GridView            gridview;
+    private ImageAdapter        adapter;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -50,6 +59,7 @@ public class PhotoBlr extends Activity {
         // view
         adapter = new ImageAdapter();
         gridview = (GridView) findViewById(R.id.GridView01);
+        gridview.setOnItemClickListener(this);
         gridview.setAdapter(adapter);
         // 接続
         this.readDashboard(id, pass, 0);
@@ -85,6 +95,27 @@ public class PhotoBlr extends Activity {
         return true;
     }
 
+    @Override
+    public void onItemClick(AdapterView<?> parent, View v, int position, long id) {
+        String url = ((ImageAdapter) this.gridview.getAdapter()).getPreviewUrl(position);
+        // コールバック付きで遷移
+        Intent intent = new Intent(this, PhotoView.class);
+        intent.putExtra("url", url);
+        startActivityForResult(intent, REQUEST_PHOTO_VIEW);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if (requestCode == REQUEST_PHOTO_VIEW) {
+            if (requestCode == RESULT_OK) {
+                return;
+            }
+            if (resultCode == RESULT_CANCELED) {
+                Toast.makeText(this, "ダウンロード失敗", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
     private void setImages(String xml) {
         XmlPullParser parser = Xml.newPullParser();
         int eventType;
@@ -98,12 +129,15 @@ public class PhotoBlr extends Activity {
                         String url = parser.nextText();
                         getThumbnail = !adapter.contains(url);
                         if (getThumbnail) {
-                            adapter.addOrigins(url);
+                            adapter.addOrigin(url);
                         }
                     }
                     // サムネイル取得フラグがあったら
                     if ("photo-url".equals(parser.getName()) && getThumbnail) {
                         int width = Integer.parseInt(parser.getAttributeValue(null, "max-width"));
+                        if (width == IMAGE_SIZE_LARGE) {
+                            adapter.addPreview(parser.nextText());
+                        }
                         if (width == 75) {
                             adapter.addThumbnail(parser.nextText());
                             getThumbnail = false;
@@ -114,7 +148,6 @@ public class PhotoBlr extends Activity {
         } catch (XmlPullParserException e) {
             e.printStackTrace();
         } catch (IOException e) {
-            // TODO 自動生成された catch ブロック
             e.printStackTrace();
         }
     }
@@ -137,25 +170,38 @@ public class PhotoBlr extends Activity {
             ByteArrayOutputStream os = new ByteArrayOutputStream();
             res.getEntity().writeTo(os);
             this.setImages(os.toString());
-            //debug("recieve xml: " + os.toString());
+            // debug("recieve xml: " + os.toString());
+            try {
+                OutputStream out = openFileOutput("a.txt", MODE_PRIVATE);
+                PrintWriter writer = new PrintWriter(new OutputStreamWriter(out, "UTF-8"));
+                writer.append(os.toString());
+                writer.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         } catch (Exception e) {
-            e.printStackTrace();
+            debug("recieve xml: " + e.toString());
         }
     }
 
     public class ImageAdapter extends BaseAdapter {
-        private final Downloader downloader = new Downloader();
-        private ArrayList<String>   origins              = new ArrayList<String>();
-        private ArrayList<String>   thumbnails           = new ArrayList<String>();
-        
+        private final Downloader  downloader = new Downloader();
+        private ArrayList<String> origins    = new ArrayList<String>();
+        private ArrayList<String> previews   = new ArrayList<String>();
+        private ArrayList<String> thumbnails = new ArrayList<String>();
+
         public boolean contains(String url) {
             return origins.contains(url);
         }
-        
-        public void addOrigins(String url) {
+
+        public void addOrigin(String url) {
             origins.add(url);
         }
-        
+
+        public void addPreview(String url) {
+            previews.add(url);
+        }
+
         public void addThumbnail(String url) {
             thumbnails.add(url);
             this.notifyDataSetChanged();
@@ -163,12 +209,16 @@ public class PhotoBlr extends Activity {
 
         @Override
         public int getCount() {
-            return origins.size();
+            return previews.size();
+        }
+
+        public String getPreviewUrl(int position) {
+            return previews.get(position);
         }
 
         @Override
         public Object getItem(int position) {
-            return position;
+            return null;
         }
 
         @Override
@@ -192,7 +242,7 @@ public class PhotoBlr extends Activity {
             return iv;
         }
     }
-    
+
     public void debug(String msg) {
         Log.d("photoblr", msg);
     }
